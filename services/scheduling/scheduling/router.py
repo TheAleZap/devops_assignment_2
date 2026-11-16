@@ -54,3 +54,12 @@ def get_best_windows(poll_id: int, limit: int = Query(default=5, ge=1, le=20)):
         return service.get_best_windows(poll_id, limit)
     except service.PollNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error))
+
+@router.get("/polls/{poll_id}/windows/{start}")
+def get_window(poll_id: int, start: date):
+    try:
+        return service.describe_window(poll_id, start)
+    except service.PollNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error))
+    except service.SchedulingError as error:
+        raise HTTPException(status_code=400, detail=str(error))

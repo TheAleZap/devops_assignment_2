@@ -32,6 +32,8 @@ def run(action, *args):
         return action(*args)
     except NOT_FOUND_ERRORS as error:
         raise HTTPException(status_code=404, detail=str(error))
+    except service.SchedulingUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error))
     except service.TripsError as error:
         raise HTTPException(status_code=400, detail=str(error))
 

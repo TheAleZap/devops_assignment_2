@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from scheduling import service as scheduling_service
+from trips import scheduling_client
 from trips import service
 
 
@@ -130,40 +130,34 @@ def test_task_from_another_trip_is_not_found(trip_with_task):
         service.claim_task(other_trip["id"], task_id, "Ana")
 
 
-# --- confirming dates through the scheduling service (the seam) ---
+# --- confirming dates (the seam; Scheduling is stubbed, see ADR-9) ---
 
-@pytest.fixture
-def poll_id(temp_db):
-    poll = scheduling_service.create_poll("Autumn", date(2026, 10, 1), date(2026, 10, 10), 3)
-    scheduling_service.set_availability(
-        poll["id"], "Ana", [date(2026, 10, 4), date(2026, 10, 5), date(2026, 10, 6)]
-    )
-    return poll["id"]
+WINDOW = {"start": "2026-10-04", "end": "2026-10-06", "available": ["Ana"], "missing": [], "missed_days": 0}
 
 
-def test_confirm_dates_stores_window_and_returns_attendance(poll_id):
+def test_confirm_dates_stores_window_and_returns_attendance(temp_db, monkeypatch):
+    monkeypatch.setattr(scheduling_client, "describe_window", lambda poll_id, start: WINDOW)
     trip = service.create_trip("Autumn", members=["Ana"])
-    updated = service.confirm_dates(trip["id"], poll_id, date(2026, 10, 4))
+    updated = service.confirm_dates(trip["id"], 7, date(2026, 10, 4))
     assert (updated["start_date"], updated["end_date"]) == ("2026-10-04", "2026-10-06")
-    assert updated["date_poll_id"] == poll_id
+    assert updated["date_poll_id"] == 7
     assert updated["confirmed_window"]["available"] == ["Ana"]
 
 
-def test_confirm_dates_rejects_window_outside_poll_range(poll_id):
-    trip = service.create_trip("Autumn")
-    with pytest.raises(service.TripsError):
-        service.confirm_dates(trip["id"], poll_id, date(2026, 10, 9))
-
-
-def test_confirm_dates_rejects_unknown_poll(temp_db):
+def test_confirm_dates_turns_rejected_window_into_trips_error(temp_db, monkeypatch):
+    def reject(poll_id, start):
+        raise scheduling_client.SchedulingRejected("Poll 999 not found")
+    monkeypatch.setattr(scheduling_client, "describe_window", reject)
     trip = service.create_trip("Autumn")
     with pytest.raises(service.TripsError):
         service.confirm_dates(trip["id"], 999, date(2026, 10, 4))
 
 
-def test_confirm_dates_works_before_anyone_submits_days(temp_db):
-    poll = scheduling_service.create_poll("Empty", date(2026, 10, 1), date(2026, 10, 10), 2)
+def test_confirm_dates_when_scheduling_is_down_leaves_trip_unchanged(temp_db, monkeypatch):
+    def down(poll_id, start):
+        raise scheduling_client.SchedulingUnavailable("Scheduling service is unavailable")
+    monkeypatch.setattr(scheduling_client, "describe_window", down)
     trip = service.create_trip("Autumn")
-    updated = service.confirm_dates(trip["id"], poll["id"], date(2026, 10, 1))
-    assert updated["start_date"] == "2026-10-01"
-    assert updated["confirmed_window"]["available"] == []
+    with pytest.raises(service.SchedulingUnavailableError):
+        service.confirm_dates(trip["id"], 1, date(2026, 10, 4))
+    assert service.get_trip(trip["id"])["start_date"] is None

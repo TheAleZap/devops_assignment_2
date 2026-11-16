@@ -1,5 +1,4 @@
-from scheduling import service as scheduling_service
-from trips import repository
+from trips import repository, scheduling_client
 
 
 class TripsError(ValueError):
@@ -11,6 +10,10 @@ class TripNotFoundError(TripsError):
 
 
 class TaskNotFoundError(TripsError):
+    pass
+
+
+class SchedulingUnavailableError(TripsError):
     pass
 
 
@@ -119,14 +122,16 @@ def complete_task(trip_id, task_id):
     return get_trip(trip_id)
 
 
-# ---------- Dates (the seam with Scheduling) ----------
+# ---------- Dates (the seam with Scheduling, over HTTP) ----------
 
 def confirm_dates(trip_id, date_poll_id, start):
     get_trip(trip_id)
     try:
-        window = scheduling_service.describe_window(date_poll_id, start)
-    except scheduling_service.SchedulingError as error:
+        window = scheduling_client.describe_window(date_poll_id, start)
+    except scheduling_client.SchedulingRejected as error:
         raise TripsError(str(error))
+    except scheduling_client.SchedulingUnavailable as error:
+        raise SchedulingUnavailableError(str(error))
     repository.set_trip_dates(trip_id, window["start"], window["end"], date_poll_id)
     trip = get_trip(trip_id)
     trip["confirmed_window"] = window
