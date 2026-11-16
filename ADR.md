@@ -57,3 +57,14 @@ Context: The original proposal included polls with deadlines for other group dec
 Decision: Not build general polls; the Scheduling domain covers only the date decision (date polls, availability and best windows), and other group decisions stay outside the app for now.
 Alternatives considered: Simple approval-vote polls with deadlines inside the Scheduling domain. Rejected because they would add new tables, endpoints and tests without strengthening the core problem: group chats already handle destination votes reasonably well with built-in polls, while matching everyone's dates is exactly where they fail.
 Consequences: The time went into testing the core logic and into documentation, and the app does one job well, but groups still have to decide destination and activities elsewhere. Because Scheduling is generic and has no dependency on Trips, polls could be added there later without changing the Trips domain.
+
+## 6. The split: Scheduling and Trips as two services along the ADR-2 seam
+Date: 2026-11-16
+Status: Decided
+**Context:** Assignment 2 requires one service per feature domain, each with its own container and database. ADR-2 placed the seam between Scheduling and Trips, with Trips reaching Scheduling only through scheduling/service.py, in a single function (confirm_dates).
+
+**Decision:** Split along ADR-2's seam unchanged. services/scheduling owns date_polls and availability; services/trips owns trips, members and tasks. The one cross-seam flow, confirming a trip's dates from a poll, stays server side: Trips calls GET /api/scheduling/polls/{id}/windows/{start}, with the base URL from SCHEDULING_URL and a 2-second timeout. If Scheduling is unreachable, Trips returns 503 with a clear message and leaves the trip unchanged; the rest of Trips keeps working.
+
+**Alternatives considered:** Doing this flow client side (the UI fetches the window from Scheduling and posts it to Trips) was rejected because Trips would then store attendance data supplied by the browser without verifying it. Moving the seam was rejected because ADR-2 held: the split needed one new endpoint, and no table had to move across it.
+
+**Consequences:** trips.date_poll_id was already a plain ID with no foreign key (ADR-3), so the split lost no database-level integrity, but Trips can still hold a poll ID that Scheduling no longer recognises. Confirming dates now depends on the network and on Scheduling being up, which is why the call has a timeout and a designed failure.
