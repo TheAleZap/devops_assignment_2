@@ -13,6 +13,7 @@ data/
 .coverage
 htmlcov/
 
-# Environment / OS
+# Environment / OS / editor
 .env
 .DS_Store
+.vscode/
