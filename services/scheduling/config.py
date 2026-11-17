@@ -1,5 +1,6 @@
 import os
 
 PORT = int(os.environ.get("PORT", "8001"))
-DATA_DIR = os.environ.get("DATA_DIR", "data")
-DB_PATH = os.path.join(DATA_DIR, "scheduling.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+DB_CONNECT_RETRIES = int(os.environ.get("DB_CONNECT_RETRIES", "10"))
+APP_VERSION = os.environ.get("APP_VERSION", "dev")

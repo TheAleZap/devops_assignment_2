@@ -1,82 +1,52 @@
 import db
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS date_polls (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    range_start TEXT NOT NULL,
-    range_end TEXT NOT NULL,
-    trip_length INTEGER NOT NULL CHECK (trip_length >= 1),
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
 
-CREATE TABLE IF NOT EXISTS availability (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date_poll_id INTEGER NOT NULL REFERENCES date_polls(id) ON DELETE CASCADE,
-    participant TEXT NOT NULL,
-    day TEXT NOT NULL,
-    UNIQUE (date_poll_id, participant, day)
-);
-"""
-
-
-def create_tables():
-    conn = db.get_connection()
-    conn.executescript(SCHEMA)
-    conn.close()
+def as_iso(value):
+    return value.isoformat() if value is not None else None
 
 
 def insert_poll(title, range_start, range_end, trip_length):
-    conn = db.get_connection()
-    try:
-        with conn:
-            cursor = conn.execute(
-                "INSERT INTO date_polls (title, range_start, range_end, trip_length) "
-                "VALUES (?, ?, ?, ?)",
-                (title, range_start, range_end, trip_length),
-            )
-        return cursor.lastrowid
-    finally:
-        conn.close()
+    with db.transaction() as cursor:
+        cursor.execute(
+            "INSERT INTO date_polls (title, range_start, range_end, trip_length) "
+            "OUTPUT INSERTED.id VALUES (%s, %s, %s, %s)",
+            (title, range_start, range_end, trip_length),
+        )
+        return cursor.fetchone()["id"]
 
 
 def get_poll(poll_id):
-    conn = db.get_connection()
-    try:
-        row = conn.execute(
+    with db.transaction() as cursor:
+        cursor.execute(
             "SELECT id, title, range_start, range_end, trip_length "
-            "FROM date_polls WHERE id = ?",
+            "FROM date_polls WHERE id = %s",
             (poll_id,),
-        ).fetchone()
-        return dict(row) if row else None
-    finally:
-        conn.close()
+        )
+        row = cursor.fetchone()
+    if row is None:
+        return None
+    return {**row, "range_start": as_iso(row["range_start"]), "range_end": as_iso(row["range_end"])}
 
 
 def get_availability(poll_id):
-    conn = db.get_connection()
-    try:
-        rows = conn.execute(
+    with db.transaction() as cursor:
+        cursor.execute(
             "SELECT participant, day FROM availability "
-            "WHERE date_poll_id = ? ORDER BY participant, day",
+            "WHERE date_poll_id = %s ORDER BY participant, day",
             (poll_id,),
-        ).fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        conn.close()
+        )
+        rows = cursor.fetchall()
+    return [{"participant": row["participant"], "day": as_iso(row["day"])} for row in rows]
 
 
 def replace_availability(poll_id, participant, days):
-    conn = db.get_connection()
-    try:
-        with conn:
-            conn.execute(
-                "DELETE FROM availability WHERE date_poll_id = ? AND participant = ?",
-                (poll_id, participant),
-            )
-            conn.executemany(
-                "INSERT INTO availability (date_poll_id, participant, day) VALUES (?, ?, ?)",
+    with db.transaction() as cursor:
+        cursor.execute(
+            "DELETE FROM availability WHERE date_poll_id = %s AND participant = %s",
+            (poll_id, participant),
+        )
+        if days:
+            cursor.executemany(
+                "INSERT INTO availability (date_poll_id, participant, day) VALUES (%s, %s, %s)",
                 [(poll_id, participant, day) for day in days],
             )
-    finally:
-        conn.close()
