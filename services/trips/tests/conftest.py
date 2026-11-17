@@ -1,12 +1,22 @@
 import pytest
 
 import config
-from trips import repository
+import db
+import migrate
+
+
+@pytest.fixture(scope="session")
+def migrated_db():
+    if not config.DATABASE_URL:
+        pytest.fail("DATABASE_URL is not set: these tests need a running SQL Server (see README)")
+    migrate.run()
 
 
 @pytest.fixture
-def temp_db(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(config, "DB_PATH", str(tmp_path / "test.db"))
-    repository.create_tables()
+def temp_db(migrated_db):
+    # Empties the tables before each test (children first). Point DATABASE_URL at a throwaway database.
+    with db.transaction() as cursor:
+        cursor.execute("DELETE FROM tasks")
+        cursor.execute("DELETE FROM members")
+        cursor.execute("DELETE FROM trips")
     yield

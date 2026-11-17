@@ -1,7 +1,8 @@
 import os
 
 PORT = int(os.environ.get("PORT", "8002"))
-DATA_DIR = os.environ.get("DATA_DIR", "data")
-DB_PATH = os.path.join(DATA_DIR, "trips.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+DB_CONNECT_RETRIES = int(os.environ.get("DB_CONNECT_RETRIES", "10"))
+APP_VERSION = os.environ.get("APP_VERSION", "dev")
 SCHEDULING_URL = os.environ.get("SCHEDULING_URL", "http://localhost:8001")
 SCHEDULING_TIMEOUT_S = float(os.environ.get("SCHEDULING_TIMEOUT_S", "2"))
