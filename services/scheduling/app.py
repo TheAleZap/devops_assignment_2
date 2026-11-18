@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 
 import config
 import db
@@ -21,6 +22,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="TripSync Scheduling", version=config.APP_VERSION, lifespan=lifespan)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "PUT"],
+    allow_headers=["Content-Type"],
+)
 
 
 @app.middleware("http")

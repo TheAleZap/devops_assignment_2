@@ -1,0 +1,97 @@
+# Whole system locally: docker compose up --build
+# Needs a .env file at the repo root (copy .env.example). Nothing secret is written here.
+name: tripsync
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -b -Q 'SELECT 1' > /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+      SCHEDULING_DB_PASSWORD: ${SCHEDULING_DB_PASSWORD:?set SCHEDULING_DB_PASSWORD in .env}
+      TRIPS_DB_PASSWORD: ${TRIPS_DB_PASSWORD:?set TRIPS_DB_PASSWORD in .env}
+    volumes:
+      - ./db/init.sql:/init.sql:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -C -b -i /init.sql -v SCHEDULING_DB_PASSWORD="$$SCHEDULING_DB_PASSWORD" TRIPS_DB_PASSWORD="$$TRIPS_DB_PASSWORD"
+    restart: "no"
+
+  scheduling:
+    build:
+      context: ./services/scheduling
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      PORT: "8001"
+      DATABASE_URL: mssql://scheduling_user:${SCHEDULING_DB_PASSWORD:?set SCHEDULING_DB_PASSWORD in .env}@sqlserver:1433/scheduling_db
+      ALLOWED_ORIGINS: http://localhost:8080
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  trips:
+    build:
+      context: ./services/trips
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    # No depends_on scheduling: Trips must start and serve its own domain even if Scheduling is down.
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      PORT: "8002"
+      DATABASE_URL: mssql://trips_user:${TRIPS_DB_PASSWORD:?set TRIPS_DB_PASSWORD in .env}@sqlserver:1433/trips_db
+      SCHEDULING_URL: http://scheduling:8001
+      SCHEDULING_TIMEOUT_S: "2"
+      ALLOWED_ORIGINS: http://localhost:8080
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  ui:
+    image: nginx:1.29-alpine
+    # Files mounted one by one (read-only): config.local.js is served as config.js.
+    volumes:
+      - ./ui/index.html:/usr/share/nginx/html/index.html:ro
+      - ./ui/app.js:/usr/share/nginx/html/app.js:ro
+      - ./ui/style.css:/usr/share/nginx/html/style.css:ro
+      - ./ui/config.local.js:/usr/share/nginx/html/config.js:ro
+    ports:
+      - "8080:80"
+
+volumes:
+  sqlserver-data:
