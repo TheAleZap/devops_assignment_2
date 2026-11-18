@@ -4,11 +4,25 @@ const $ = (id) => document.getElementById(id);
 
 // ---------- API ----------
 
+// Each path goes to the service that owns it. The base URLs come from config.js,
+// which is configuration (local file in compose, generated at deploy time on Azure).
+function serviceUrl(path) {
+  const config = window.TRIPSYNC_CONFIG || {};
+  if (path.startsWith("/api/scheduling")) return config.SCHEDULING_URL + path;
+  if (path.startsWith("/api/trips")) return config.TRIPS_URL + path;
+  throw new Error(`No service is configured for ${path}`);
+}
+
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+  let response;
+  try {
+    response = await fetch(serviceUrl(path), {
+      headers: { "Content-Type": "application/json" },
+      ...options,
+    });
+  } catch {
+    throw new Error("That service can't be reached right now. Try again in a minute.");
+  }
   const data = await response.json();
   if (!response.ok) {
     const detail = Array.isArray(data.detail) ? data.detail[0].msg : data.detail;
