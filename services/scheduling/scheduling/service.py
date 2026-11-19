@@ -11,6 +11,13 @@ class PollNotFoundError(SchedulingError):
     pass
 
 
+def clean_text(value, field):
+    cleaned = value.strip()
+    if not cleaned:
+        raise SchedulingError(f"{field} cannot be empty")
+    return cleaned
+
+
 def validate_poll(range_start, range_end, trip_length):
     if range_end < range_start:
         raise SchedulingError("range_end must be on or after range_start")
@@ -33,9 +40,10 @@ def group_by_participant(rows):
 
 
 def create_poll(title, range_start, range_end, trip_length):
+    clean_title = clean_text(title, "title")
     validate_poll(range_start, range_end, trip_length)
     poll_id = repository.insert_poll(
-        title.strip(), range_start.isoformat(), range_end.isoformat(), trip_length
+        clean_title, range_start.isoformat(), range_end.isoformat(), trip_length
     )
     return get_poll(poll_id)
 
@@ -49,6 +57,7 @@ def get_poll(poll_id):
 
 
 def set_availability(poll_id, participant, days):
+    clean_participant = clean_text(participant, "participant")
     poll = get_poll(poll_id)
     validate_days(
         days,
@@ -56,7 +65,7 @@ def set_availability(poll_id, participant, days):
         date.fromisoformat(poll["range_end"]),
     )
     unique_days = sorted({day.isoformat() for day in days})
-    repository.replace_availability(poll_id, participant.strip(), unique_days)
+    repository.replace_availability(poll_id, clean_participant, unique_days)
     return get_poll(poll_id)
 
 def find_best_windows(range_start, range_end, trip_length, availability, limit=5):

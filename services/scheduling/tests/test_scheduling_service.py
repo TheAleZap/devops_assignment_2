@@ -141,3 +141,19 @@ def test_get_best_windows_uses_saved_availability(temp_db):
     result = service.get_best_windows(poll["id"])
     assert result[0]["start"] == "2026-10-02"
     assert result[0]["available"] == ["Ana"]
+
+
+# --- blank names (A1 feedback: whitespace-only names were saved) ---
+
+def test_clean_text_trims_whitespace():
+    assert service.clean_text("  Ana  ", "participant") == "Ana"
+
+
+def test_create_poll_rejects_whitespace_only_title():
+    with pytest.raises(service.SchedulingError):
+        service.create_poll("   ", date(2026, 10, 1), date(2026, 10, 3), 2)
+
+
+def test_set_availability_rejects_whitespace_only_participant():
+    with pytest.raises(service.SchedulingError):
+        service.set_availability(1, "   ", [date(2026, 10, 1)])
