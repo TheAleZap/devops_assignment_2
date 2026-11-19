@@ -146,7 +146,7 @@ def test_confirm_dates_stores_window_and_returns_attendance(temp_db, monkeypatch
 
 def test_confirm_dates_turns_rejected_window_into_trips_error(temp_db, monkeypatch):
     def reject(poll_id, start):
-        raise scheduling_client.SchedulingRejected("Poll 999 not found")
+        raise scheduling_client.SchedulingRejected("That window falls outside the poll's date range")
     monkeypatch.setattr(scheduling_client, "describe_window", reject)
     trip = service.create_trip("Autumn")
     with pytest.raises(service.TripsError):
@@ -161,3 +161,13 @@ def test_confirm_dates_when_scheduling_is_down_leaves_trip_unchanged(temp_db, mo
     with pytest.raises(service.SchedulingUnavailableError):
         service.confirm_dates(trip["id"], 1, date(2026, 10, 4))
     assert service.get_trip(trip["id"])["start_date"] is None
+
+
+def test_confirm_dates_with_unknown_poll_raises_poll_not_found(temp_db, monkeypatch):
+    # A1 feedback: an unknown poll returned 400; it is now a 404 (PollNotFoundError is in NOT_FOUND_ERRORS).
+    def missing(poll_id, start):
+        raise scheduling_client.SchedulingPollNotFound("Poll 999 not found")
+    monkeypatch.setattr(scheduling_client, "describe_window", missing)
+    trip = service.create_trip("Autumn")
+    with pytest.raises(service.PollNotFoundError):
+        service.confirm_dates(trip["id"], 999, date(2026, 10, 4))

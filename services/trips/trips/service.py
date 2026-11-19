@@ -13,6 +13,10 @@ class TaskNotFoundError(TripsError):
     pass
 
 
+class PollNotFoundError(TripsError):
+    pass
+
+
 class SchedulingUnavailableError(TripsError):
     pass
 
@@ -128,6 +132,8 @@ def confirm_dates(trip_id, date_poll_id, start):
     get_trip(trip_id)
     try:
         window = scheduling_client.describe_window(date_poll_id, start)
+    except scheduling_client.SchedulingPollNotFound as error:
+        raise PollNotFoundError(str(error))
     except scheduling_client.SchedulingRejected as error:
         raise TripsError(str(error))
     except scheduling_client.SchedulingUnavailable as error:

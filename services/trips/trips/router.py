@@ -6,7 +6,7 @@ from trips import service
 
 router = APIRouter(prefix="/api/trips", tags=["trips"])
 
-NOT_FOUND_ERRORS = (service.TripNotFoundError, service.TaskNotFoundError)
+NOT_FOUND_ERRORS = (service.TripNotFoundError, service.TaskNotFoundError, service.PollNotFoundError)
 
 
 class TripCreate(BaseModel):
