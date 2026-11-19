@@ -1,0 +1,592 @@
+{
+  "components": {
+    "schemas": {
+      "AvailabilityUpdate": {
+        "properties": {
+          "days": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "participant": {
+            "minLength": 1,
+            "title": "Participant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "participant",
+          "days"
+        ],
+        "title": "AvailabilityUpdate",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Health": {
+        "properties": {
+          "db": {
+            "title": "Db",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "db",
+          "version"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "Poll": {
+        "properties": {
+          "availability": {
+            "additionalProperties": {
+              "items": {
+                "format": "date",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "description": "Free days per participant",
+            "title": "Availability",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "range_end": {
+            "format": "date",
+            "title": "Range End",
+            "type": "string"
+          },
+          "range_start": {
+            "format": "date",
+            "title": "Range Start",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "trip_length": {
+            "title": "Trip Length",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "range_start",
+          "range_end",
+          "trip_length",
+          "availability"
+        ],
+        "title": "Poll",
+        "type": "object"
+      },
+      "PollCreate": {
+        "properties": {
+          "range_end": {
+            "format": "date",
+            "title": "Range End",
+            "type": "string"
+          },
+          "range_start": {
+            "format": "date",
+            "title": "Range Start",
+            "type": "string"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "trip_length": {
+            "minimum": 1.0,
+            "title": "Trip Length",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "title",
+          "range_start",
+          "range_end",
+          "trip_length"
+        ],
+        "title": "PollCreate",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "Window": {
+        "properties": {
+          "available": {
+            "description": "Participants free on every day of the window",
+            "items": {
+              "type": "string"
+            },
+            "title": "Available",
+            "type": "array"
+          },
+          "end": {
+            "format": "date",
+            "title": "End",
+            "type": "string"
+          },
+          "missed_days": {
+            "description": "Total days missed by the missing participants",
+            "title": "Missed Days",
+            "type": "integer"
+          },
+          "missing": {
+            "description": "Participants missing at least one day",
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "start": {
+            "format": "date",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "available",
+          "missing",
+          "missed_days"
+        ],
+        "title": "Window",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "TripSync Scheduling",
+    "version": "dev"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/scheduling/polls": {
+      "post": {
+        "operationId": "create_poll_api_scheduling_polls_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PollCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Poll"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by a business rule"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Poll",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/scheduling/polls/{poll_id}": {
+      "get": {
+        "operationId": "get_poll_api_scheduling_polls__poll_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "poll_id",
+            "required": true,
+            "schema": {
+              "title": "Poll Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Poll"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Poll not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Poll",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/scheduling/polls/{poll_id}/availability": {
+      "put": {
+        "operationId": "set_availability_api_scheduling_polls__poll_id__availability_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "poll_id",
+            "required": true,
+            "schema": {
+              "title": "Poll Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AvailabilityUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Poll"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by a business rule"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Poll not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Availability",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/scheduling/polls/{poll_id}/best-windows": {
+      "get": {
+        "operationId": "get_best_windows_api_scheduling_polls__poll_id__best_windows_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "poll_id",
+            "required": true,
+            "schema": {
+              "title": "Poll Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Window"
+                  },
+                  "title": "Response Get Best Windows Api Scheduling Polls  Poll Id  Best Windows Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Poll not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Best Windows",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/scheduling/polls/{poll_id}/windows/{start}": {
+      "get": {
+        "operationId": "get_window_api_scheduling_polls__poll_id__windows__start__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "poll_id",
+            "required": true,
+            "schema": {
+              "title": "Poll Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Start",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Window"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by a business rule"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Poll not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Describe one window (called by the Trips service across the seam)",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Own database unreachable"
+          }
+        },
+        "summary": "Health"
+      }
+    }
+  }
+}
