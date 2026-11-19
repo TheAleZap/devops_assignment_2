@@ -1,0 +1,89 @@
+# yaml-language-server: $schema=./system.schema.json
+# TripSync: two services (Scheduling and Trips) and a static UI, deployed to Azure.
+# Must match the code and the deployment; CI validates this file against system.schema.json.
+
+student: azapata.ieu2024
+prefix: azapata-ieu2024
+public_url: https://azapataieu2024ui.z28.web.core.windows.net
+
+ui:
+  path: ui/
+  storage_account: azapataieu2024ui
+  calls: [scheduling, trips]
+
+azure:
+  resource_group: rg-azapata-ieu2024
+  container_apps_environment: azapata-ieu2024-env
+  sql_server: azapata-ieu2024-sql
+  registry: ghcr.io/thealezap
+
+services:
+  scheduling:
+    description: Date polls, each friend's free days, and ranking of trip-length windows by attendance.
+    path: services/scheduling/
+    openapi: services/scheduling/openapi.json
+    port_default: 8001
+    health: /health
+    migrations: services/scheduling/migrations/
+    env:
+      PORT:
+        description: Port the service listens on.
+        default: 8001
+      DATABASE_URL:
+        description: "mssql://scheduling_user:<password>@<host>:1433/<database> for this service's own database."
+        secret: true
+      DB_CONNECT_RETRIES:
+        description: Connection attempts (with backoff up to 10 s) before giving up, for a paused serverless database.
+        default: 10
+      ALLOWED_ORIGINS:
+        description: Comma-separated origins allowed by CORS; on Azure only the UI's public URL.
+        default: http://localhost:8080
+      APP_VERSION:
+        description: Version reported by /health; set to the git commit SHA when the image is built.
+        default: dev
+    azure:
+      container_app: azapata-ieu2024-scheduling
+      sql_database: azapata-ieu2024-scheduling-db
+
+  trips:
+    description: Trips with members and a task board; confirms a trip's dates from a Scheduling poll.
+    path: services/trips/
+    openapi: services/trips/openapi.json
+    port_default: 8002
+    health: /health
+    migrations: services/trips/migrations/
+    env:
+      PORT:
+        description: Port the service listens on.
+        default: 8002
+      DATABASE_URL:
+        description: "mssql://trips_user:<password>@<host>:1433/<database> for this service's own database."
+        secret: true
+      DB_CONNECT_RETRIES:
+        description: Connection attempts (with backoff up to 10 s) before giving up, for a paused serverless database.
+        default: 10
+      ALLOWED_ORIGINS:
+        description: Comma-separated origins allowed by CORS; on Azure only the UI's public URL.
+        default: http://localhost:8080
+      APP_VERSION:
+        description: Version reported by /health; set to the git commit SHA when the image is built.
+        default: dev
+      SCHEDULING_URL:
+        description: Base URL of the Scheduling service (compose http://scheduling:8001; on Azure its HTTPS address).
+        default: http://localhost:8001
+      SCHEDULING_TIMEOUT_S:
+        description: Timeout in seconds for every call to Scheduling.
+        default: 10
+    calls:
+      - service: scheduling
+        url_env: SCHEDULING_URL
+        endpoints:
+          - GET /api/scheduling/polls/{poll_id}/windows/{start}
+        timeout_s: 10
+        on_failure: >-
+          Confirming dates returns 503 with "The scheduling service is unavailable right now, so dates can't be
+          confirmed. Try again in a minute." and the trip is left unchanged; everything else in Trips keeps working.
+          An unknown poll returns 404 and a window outside the poll returns 400.
+    azure:
+      container_app: azapata-ieu2024-trips
+      sql_database: azapata-ieu2024-trips-db

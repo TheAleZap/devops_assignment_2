@@ -1,0 +1,10 @@
+# Lint settings shared by both services (CI runs: ruff check services)
+target-version = "py314"
+line-length = 120
+
+[lint]
+# pycodestyle errors, pyflakes (unused names, undefined names), import order
+select = ["E4", "E7", "E9", "F", "I"]
+
+[lint.isort]
+known-first-party = ["app", "config", "db", "migrate", "scheduling", "trips"]

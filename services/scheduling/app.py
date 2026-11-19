@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 import config
 import db
@@ -45,7 +46,13 @@ async def log_requests(request: Request, call_next):
         log.info("%s %s %d %.1fms", request.method, request.url.path, status, duration_ms)
 
 
-@app.get("/health")
+class Health(BaseModel):
+    status: str
+    db: str
+    version: str
+
+
+@app.get("/health", response_model=Health, responses={503: {"model": Health, "description": "Own database unreachable"}})
 def health(response: Response):
     try:
         db.check()
