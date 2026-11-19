@@ -1,0 +1,150 @@
+# CI: runs on every push and pull request (and is called by the CD workflow on main).
+# Gates: lint, unit + API tests with >=70% coverage per service against a real SQL Server,
+# OpenAPI documents up to date and valid, the cross-seam integration test, and both image builds.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - run: pip install ruff==0.17.5
+      - run: ruff check services tests scripts
+
+  test:
+    name: Test ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [scheduling, trips]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Generate throwaway database passwords (never stored anywhere)
+        run: |
+          for name in MSSQL_SA_PASSWORD SCHEDULING_DB_PASSWORD TRIPS_DB_PASSWORD; do
+            value="Ci$(openssl rand -hex 12)Z9"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+
+      - name: Start SQL Server and run db/init.sql
+        run: |
+          docker run -d --name sql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$MSSQL_SA_PASSWORD" -p 1433:1433 \
+            mcr.microsoft.com/mssql/server:2022-latest
+          for attempt in $(seq 1 60); do
+            docker exec sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b \
+              -Q "SELECT 1" > /dev/null 2>&1 && break
+            sleep 2
+          done
+          docker cp db/init.sql sql:/tmp/init.sql
+          docker exec sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b \
+            -i /tmp/init.sql -v SCHEDULING_DB_PASSWORD="$SCHEDULING_DB_PASSWORD" TRIPS_DB_PASSWORD="$TRIPS_DB_PASSWORD"
+
+      - name: Install dependencies
+        working-directory: services/${{ matrix.service }}
+        run: pip install -r requirements-dev.txt
+
+      - name: Test with coverage (fails below 70%)
+        working-directory: services/${{ matrix.service }}
+        run: |
+          if [ "${{ matrix.service }}" = "scheduling" ]; then password="$SCHEDULING_DB_PASSWORD"; else password="$TRIPS_DB_PASSWORD"; fi
+          export DATABASE_URL="mssql://${{ matrix.service }}_user:${password}@localhost:1433/${{ matrix.service }}_db"
+          python -m pytest --cov=${{ matrix.service }} --cov=db --cov=migrate --cov-report=term-missing --cov-fail-under=70
+
+  contracts:
+    name: OpenAPI documents and system.yaml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - run: |
+          pip install -r services/scheduling/requirements.lock -r services/trips/requirements.lock \
+            openapi-spec-validator==0.9.0 check-jsonschema==0.39.0 pyyaml==6.0.3
+      - name: Committed openapi.json files match the code
+        run: |
+          for service in scheduling trips; do (cd services/$service && python export_openapi.py); done
+          git diff --exit-code -- services/scheduling/openapi.json services/trips/openapi.json
+      - name: Both documents are valid OpenAPI
+        run: openapi-spec-validator services/scheduling/openapi.json services/trips/openapi.json
+      - name: system.yaml follows system.schema.json
+        run: check-jsonschema --schemafile system.schema.json system.yaml
+      - name: system.yaml matches the code (env vars, ports, paths, cross-service endpoints)
+        run: python scripts/check_system_yaml.py
+
+  integration:
+    name: Cross-seam integration test
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Write a throwaway .env for compose
+        run: |
+          for name in MSSQL_SA_PASSWORD SCHEDULING_DB_PASSWORD TRIPS_DB_PASSWORD; do
+            value="Ci$(openssl rand -hex 12)Z9"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> .env
+          done
+      - name: Start the whole system
+        run: docker compose up -d --build
+      - run: pip install -r tests/integration/requirements.txt
+      - name: Run the cross-seam tests (including Scheduling stopped)
+        run: python -m pytest tests/integration -v
+      - name: Show service logs if something failed
+        if: failure()
+        run: docker compose logs --tail 100 scheduling trips db-init
+      - name: Remove the throwaway system (CI only)
+        if: always()
+        run: docker compose down -v
+
+  build:
+    name: Build ${{ matrix.service }} image
+    needs: [lint, test, contracts, integration]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [scheduling, trips]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: Image name (GHCR needs a lowercase owner)
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tripsync-${{ matrix.service }}" >> "$GITHUB_ENV"
+      - name: Log in to GHCR (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build, and push tagged with the commit SHA on main
+        uses: docker/build-push-action@v6
+        with:
+          context: services/${{ matrix.service }}
+          build-args: APP_VERSION=${{ github.sha }}
+          provenance: false
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ${{ env.IMAGE }}:${{ github.sha }}

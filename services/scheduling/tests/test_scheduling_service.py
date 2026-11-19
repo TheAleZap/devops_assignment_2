@@ -4,7 +4,6 @@ import pytest
 
 from scheduling import service
 
-
 # --- validate_poll ---
 
 def test_validate_poll_accepts_trip_that_exactly_fits_range():

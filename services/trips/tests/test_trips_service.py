@@ -2,9 +2,7 @@ from datetime import date
 
 import pytest
 
-from trips import scheduling_client
-from trips import service
-
+from trips import scheduling_client, service
 
 # --- pure helpers ---
 

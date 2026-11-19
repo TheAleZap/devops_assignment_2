@@ -5,7 +5,6 @@ import pytest
 
 from trips import scheduling_client
 
-
 START = date(2026, 10, 4)
 
 
