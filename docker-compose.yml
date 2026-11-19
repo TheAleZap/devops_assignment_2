@@ -71,7 +71,7 @@ services:
       PORT: "8002"
       DATABASE_URL: mssql://trips_user:${TRIPS_DB_PASSWORD:?set TRIPS_DB_PASSWORD in .env}@sqlserver:1433/trips_db
       SCHEDULING_URL: http://scheduling:8001
-      SCHEDULING_TIMEOUT_S: "2"
+      SCHEDULING_TIMEOUT_S: "10"
       ALLOWED_ORIGINS: http://localhost:8080
     ports:
       - "8002:8002"
