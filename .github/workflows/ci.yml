@@ -1,10 +1,11 @@
-# CI: runs on every push and pull request (and is called by the CD workflow on main).
+# CI: runs on every push to a branch and every pull request; on main it is called by the CD workflow.
 # Gates: lint, unit + API tests with >=70% coverage per service against a real SQL Server,
 # OpenAPI documents up to date and valid, the cross-seam integration test, and both image builds.
 name: CI
 
 on:
   push:
+    branches-ignore: [main]   # on main, CI runs inside the CD workflow instead (no double run)
   pull_request:
   workflow_call:
 
