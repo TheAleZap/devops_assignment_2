@@ -13,22 +13,63 @@ function serviceUrl(path) {
   throw new Error(`No service is configured for ${path}`);
 }
 
-async function api(path, options = {}) {
-  let response;
+// On Azure a service scales to zero. The first request after a quiet period starts the container and
+// may find its database paused; until it is ready, Azure answers 503 with its own (non-JSON) page.
+const COLD_START_STATUSES = [502, 503, 504];
+const COLD_START_RETRIES = 3;
+const COLD_START_WAIT_MS = 5000;
+const WAKING_UP =
+  "TripSync is waking up after a quiet period (this can take up to a minute). Please try again in a moment.";
+
+const UNREACHABLE =
+  "That service can't be reached right now. If the app was idle it may be starting up (up to a minute), so please try again in a moment.";
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function readJson(response) {
   try {
-    response = await fetch(serviceUrl(path), {
-      headers: { "Content-Type": "application/json" },
-      ...options,
-    });
+    return await response.json();
   } catch {
-    throw new Error("That service can't be reached right now. Try again in a minute.");
+    return null;
   }
-  const data = await response.json();
-  if (!response.ok) {
-    const detail = Array.isArray(data.detail) ? data.detail[0].msg : data.detail;
-    throw new Error(detail || "Something went wrong");
+}
+
+async function api(path, options = {}) {
+  for (let attempt = 0; ; attempt++) {
+    let response;
+    try {
+      response = await fetch(serviceUrl(path), {
+        headers: { "Content-Type": "application/json" },
+        ...options,
+      });
+    } catch {
+      // No response at all. Azure's cold-start page has no CORS header, so the browser can report it
+      // like this too. Only reads are retried: a failed write may have reached the service already.
+      const isRead = (options.method || "GET") === "GET";
+      if (isRead && attempt < COLD_START_RETRIES) {
+        showMessage("Starting up, retrying in a few seconds...");
+        await sleep(COLD_START_WAIT_MS);
+        continue;
+      }
+      throw new Error(UNREACHABLE);
+    }
+    const data = await readJson(response);
+    if (response.ok) return data;
+    if (data && data.detail) {
+      // An error from our own service (400, 404, or Trips' 503 when Scheduling is down): show it as is.
+      throw new Error(Array.isArray(data.detail) ? data.detail[0].msg : data.detail);
+    }
+    if (COLD_START_STATUSES.includes(response.status)) {
+      // Azure's own page: the request never reached the app, so it is safe to send again.
+      if (attempt < COLD_START_RETRIES) {
+        showMessage("Starting up, retrying in a few seconds...");
+        await sleep(COLD_START_WAIT_MS);
+        continue;
+      }
+      throw new Error(WAKING_UP);
+    }
+    throw new Error(`Something went wrong (HTTP ${response.status})`);
   }
-  return data;
 }
 
 function showMessage(text, isError = false) {
