@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -8,6 +9,9 @@ from trips import service
 router = APIRouter(prefix="/api/trips", tags=["trips"])
 
 NOT_FOUND_ERRORS = (service.TripNotFoundError, service.TaskNotFoundError, service.PollNotFoundError)
+
+
+Priority = Literal["low", "normal", "high"]
 
 
 # ---------- Request bodies ----------
@@ -24,6 +28,7 @@ class MemberAdd(BaseModel):
 
 class TaskCreate(BaseModel):
     title: str = Field(min_length=1)
+    priority: Priority = "normal"
 
 
 class TaskClaim(BaseModel):
@@ -46,6 +51,7 @@ class Task(BaseModel):
     id: int
     title: str
     done: bool
+    priority: Priority
     claimed_by: str | None
 
 
@@ -116,7 +122,7 @@ def add_member(trip_id: int, body: MemberAdd):
 
 @router.post("/{trip_id}/tasks", status_code=201, response_model=Trip, responses={**NOT_FOUND, **BAD_REQUEST})
 def add_task(trip_id: int, body: TaskCreate):
-    return run(service.add_task, trip_id, body.title)
+    return run(service.add_task, trip_id, body.title, body.priority)
 
 
 @router.post("/{trip_id}/tasks/{task_id}/claim", response_model=Trip, responses={**NOT_FOUND, **BAD_REQUEST})

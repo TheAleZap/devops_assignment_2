@@ -146,6 +146,15 @@
             "title": "Id",
             "type": "integer"
           },
+          "priority": {
+            "enum": [
+              "low",
+              "normal",
+              "high"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -155,6 +164,7 @@
           "id",
           "title",
           "done",
+          "priority",
           "claimed_by"
         ],
         "title": "Task",
@@ -176,6 +186,16 @@
       },
       "TaskCreate": {
         "properties": {
+          "priority": {
+            "default": "normal",
+            "enum": [
+              "low",
+              "normal",
+              "high"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
           "title": {
             "minLength": 1,
             "title": "Title",

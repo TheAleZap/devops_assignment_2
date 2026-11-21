@@ -47,15 +47,18 @@ def get_members(trip_id):
         return cursor.fetchall()
 
 
-def insert_task(trip_id, title):
+def insert_task(trip_id, title, priority):
     with db.transaction() as cursor:
-        cursor.execute("INSERT INTO tasks (trip_id, title) VALUES (%s, %s)", (trip_id, title))
+        cursor.execute(
+            "INSERT INTO tasks (trip_id, title, priority) VALUES (%s, %s, %s)",
+            (trip_id, title, priority),
+        )
 
 
 def get_tasks(trip_id):
     with db.transaction() as cursor:
         cursor.execute(
-            "SELECT tasks.id, tasks.title, tasks.done, members.name AS claimed_by "
+            "SELECT tasks.id, tasks.title, tasks.done, tasks.priority, members.name AS claimed_by "
             "FROM tasks LEFT JOIN members ON members.id = tasks.claimed_by "
             "WHERE tasks.trip_id = %s ORDER BY tasks.id",
             (trip_id,),

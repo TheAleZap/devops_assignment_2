@@ -2,6 +2,7 @@ from datetime import date
 
 import pytest
 
+import db
 from trips import scheduling_client, service
 
 # --- pure helpers ---
@@ -57,6 +58,25 @@ def test_add_member_adds_a_new_person(temp_db):
     trip = service.create_trip("Autumn", members=["Ana"])
     updated = service.add_member(trip["id"], "Ben")
     assert [member["name"] for member in updated["members"]] == ["Ana", "Ben"]
+
+
+def test_add_task_defaults_to_normal_priority(temp_db):
+    trip = service.create_trip("Autumn", members=["Ana"])
+    assert service.add_task(trip["id"], "Book flat")["tasks"][0]["priority"] == "normal"
+
+
+def test_add_task_rejects_unknown_priority(temp_db):
+    trip = service.create_trip("Autumn", members=["Ana"])
+    with pytest.raises(service.TripsError):
+        service.add_task(trip["id"], "Book flat", "urgent")
+
+
+def test_task_inserted_without_priority_gets_normal(temp_db):
+    # What the previous revision does during a CD rollout: it inserts without the new column.
+    trip = service.create_trip("Autumn", members=["Ana"])
+    with db.transaction() as cursor:
+        cursor.execute("INSERT INTO tasks (trip_id, title) VALUES (%s, %s)", (trip["id"], "Old revision task"))
+    assert service.get_trip(trip["id"])["tasks"][0]["priority"] == "normal"
 
 
 def test_add_member_rejects_duplicate_name_in_any_case(temp_db):

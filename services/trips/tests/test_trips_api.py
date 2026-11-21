@@ -92,3 +92,11 @@ def test_health_reports_the_database_and_version(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["db"] == "ok"
+
+
+def test_add_task_accepts_a_priority_and_rejects_unknown_ones(client):
+    trip_id = create_trip(client).json()["id"]
+    response = client.post(f"/api/trips/{trip_id}/tasks", json={"title": "Lift passes", "priority": "high"})
+    assert response.json()["tasks"][0]["priority"] == "high"
+    bad = client.post(f"/api/trips/{trip_id}/tasks", json={"title": "X", "priority": "urgent"})
+    assert bad.status_code == 422
