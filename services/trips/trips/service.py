@@ -21,6 +21,9 @@ class SchedulingUnavailableError(TripsError):
     pass
 
 
+PRIORITIES = ("low", "normal", "high")
+
+
 # ---------- Pure helpers ----------
 
 def clean_name(name, field="name"):
@@ -99,9 +102,11 @@ def add_member(trip_id, name):
 
 # ---------- Task board ----------
 
-def add_task(trip_id, title):
+def add_task(trip_id, title, priority="normal"):
     get_trip(trip_id)
-    repository.insert_task(trip_id, clean_name(title, "task title"))
+    if priority not in PRIORITIES:
+        raise TripsError(f"priority must be one of: {', '.join(PRIORITIES)}")
+    repository.insert_task(trip_id, clean_name(title, "task title"), priority)
     return get_trip(trip_id)
 
 
