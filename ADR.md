@@ -104,3 +104,17 @@ Status: Decided
 **Alternatives considered:** A minimum of one replica would remove container cold starts but bills the container all the time, against the pay-per-use requirement. App Service was rejected because its plan is billed even when idle. Private GHCR packages with registry credentials were rejected because they add a secret to manage, while the images contain only code (no .env, no tests) and the repository is already public. Retrying writes in the UI was rejected: a failed POST may already have reached the service, so only reads (GET) are retried and writes show a clear message instead.
 
 **Consequences:** The first request after the database has paused takes up to about a minute and may first get Azure's 503 "App port is not ready", which the UI turns into a retry and a clear message. Idle cost is close to zero. With at most one replica, running migrations at startup is safe (no two instances race), but throughput is capped, which is acceptable for a group trip planner. The 10-second Trips timeout means a slow Scheduling can make confirming dates wait up to 10 seconds before the designed 503.
+
+
+## 10. Not queuing date confirmations when Scheduling is unavailable
+Date: 2026-11-21
+Status: Decided (not built)
+**Context:** Confirming a trip's dates is the only flow that crosses the seam: Trips calls Scheduling and stores the window. If Scheduling is down, cold or slower than SCHEDULING_TIMEOUT_S, Trips returns 503 and leaves the trip unchanged (ADR-6, ADR-8), and the user has to press "Confirm dates" again. A queue would let Trips accept the confirmation at once and finish it when Scheduling is back.
+
+**Decision:** I did not build it. Confirming dates stays synchronous: it either succeeds with the real window from Scheduling, or fails with a clear 503 and changes nothing. A message broker (Service Bus, RabbitMQ, Redis) and a background worker to drain it are out of scope for this assignment, and both would run all the time, against the scale-to-zero, pay-per-use deployment.
+
+**Alternatives considered:** A Service Bus queue plus a worker that retries the confirmation (out of scope, a third running component, and a monthly cost). An outbox table in trips_db retried at the next request or startup (no broker, but the trip would sit in a "pending" state that the UI and the task board would have to show, and a retry could confirm a window that is no longer the best one because availability changed in the meantime). Caching the last windows from Scheduling inside Trips (would let Trips confirm stale dates without Scheduling knowing).
+
+**Consequences:** The user sometimes sees "The scheduling service is unavailable right now" and has to retry, usually only after a cold start; with Scheduling waking in under a minute and Trips waiting 10 seconds, most confirmations succeed on the first or second try. In exchange there is never a half-confirmed trip, no extra infrastructure, and the data is always exactly what Scheduling computed at that moment.
+
+**Worth building when:** confirming dates fails often enough that users notice (for example more than 5% of confirmations returning 503 in the request logs over a month), or Scheduling gets an always-on instance anyway (then the queue no longer breaks scale to zero), or confirming dates starts triggering other work, such as notifying every member, where waiting for one HTTP call is no longer acceptable.
