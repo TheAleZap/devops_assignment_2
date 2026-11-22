@@ -77,7 +77,7 @@ and \emph{me as the developer and operator}, who pays (in credit) for whatever r
   \item Confirming dates never leaves a trip half-updated: if Scheduling is down, the organiser sees a clear message within 10\,s and the trip is unchanged, in 100\% of the integration-test runs. \emph{Met} (§5.2).
   \item A schema change reaches production without losing data: migration 002 is deployed by the pipeline and trip \#1 keeps all its members, dates, claims and done flags. \emph{Met} (§5.1).
   \item Every merged change reaches users in under 10 minutes with no manual step, and a change that breaks the API contract never reaches them. \emph{Met}: CD takes 4--6 min; the contract gate blocked a stale contract (§5.3).
-  \item An idle week costs (close to) nothing: everything scales to zero or pauses. \emph{Met} by design (ADR-8); credit use stayed negligible.
+  \item An idle week costs (close to) nothing: everything scales to zero or pauses. \emph{Met} by design (ADR-8): the containers scale to zero and the databases pause after 60 idle minutes.
 \end{enumerate}
 
 \textbf{Process.} I kept the iterative, incremental model of Assignment 1, but with a stricter loop: one small increment per branch,
@@ -232,7 +232,7 @@ cold-start 503 page and shows ``starting up'' (ADR-8). The CI integration test s
 \begin{itemize}
   \item \textbf{Successful CD run on \code{main}}: \href{https://github.com/TheAleZap/devops_assignment_2/actions/runs/44907062326}{run 44907062326} (migration 002: CI, SHA-tagged images, deploy, health check on the SHA), and the first deploy, \code{3e865f0} (evidence 11).
   \item \textbf{Failed run that was fixed}: \href{https://github.com/TheAleZap/devops_assignment_2/actions/runs/45013261916}{run 45013261916} $\to$ fixed in \href{https://github.com/TheAleZap/devops_assignment_2/actions/runs/45013755471}{run 45013755471} (PR \#12).
-  \emph{This failure was deliberate.} No run had failed by accident during the week (I ran ruff, pytest and \code{export\_openapi.py} locally before every push), so I tested the contract gate on purpose while adding a real feature, an endpoint to change a task's priority.
+  \emph{This failure was deliberate.} No run had failed by accident during the week (I usually ran ruff and the tests locally before pushing code changes), so I tested the contract gate on purpose while adding a real feature, an endpoint to change a task's priority.
   \textbf{Cause:} the new \code{PUT /api/trips/\{trip\_id\}/tasks/\{task\_id\}/priority} was committed without regenerating \code{openapi.json}; the \emph{contracts} job regenerated the document from the code, diffed it with the committed file, found the missing operation and exited 1. Lint, tests and the integration test passed, and both image builds were \emph{skipped} because they need every gate, so nothing could reach GHCR or Azure.
   \textbf{Fix:} regenerate and commit \code{openapi.json}; all 14 checks passed and the PR was merged and deployed.
 \end{itemize}
@@ -258,7 +258,7 @@ Wed 18 & Compose, static UI, partial failure & Done. A read-only nested mount fa
 Thu 19 & CI, OpenAPI, \code{system.yaml} & Done (ADR-9), the heaviest day: the contract and \code{system.yaml} checks took longer than planned. & 8\\
 Fri 20 & Azure and CD & Done (ADR-8), but slower: an empty shell variable produced a wrong OIDC subject (\code{repo::ref}), and cold starts forced a 10\,s Trips timeout (2\,s in ADR-6) and UI retries. & 3\\
 Sat 21 & Migration 002, README, ADR-10 & Done. My Azure CLI was pointed at another subscription; I noticed before changing anything. Running tests on the compose database wiped local data, so tests now use a throwaway database. & 4\\
-Sun 22 & Report, submission tag & Added the change-priority endpoint and UI, used it to test the contract gate deliberately, wrote this report. & 4+\\
+Sun 22 & Report, submission tag & Added the change-priority endpoint and UI, used it to test the contract gate deliberately, wrote this report, and added the missing ADR-8 and ADR-9 topics. & 7\\
 \bottomrule
 \end{tabularx}
 
@@ -274,7 +274,7 @@ Git commands and errors, and draft the ADRs, the README and this report. The pro
 for Assignment~2 with exact commands'', ``give me everything I need for today'', ``propose and write a migration that changes a table that
 already has data'' and ``draft ADR-10 on one thing deliberately not built''. The output of these prompts was used as drafts: I ran every
 command myself, made every commit, push and merge myself, tested each change locally and in CI, chose between the options proposed,
-and rewrote the ADRs, AI-log explanations and this report in my own words. Every interaction is logged in \code{AI\_USAGE.md},
+and reviewed every draft before committing it, changing the parts that did not match what I had done. Every interaction is logged in \code{AI\_USAGE.md},
 including what I changed and how each piece of code works.
 
 \end{document}
