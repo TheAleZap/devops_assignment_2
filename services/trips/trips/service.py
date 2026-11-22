@@ -53,6 +53,12 @@ def find_member(members, name):
     return None
 
 
+def check_priority(priority):
+    if priority not in PRIORITIES:
+        raise TripsError(f"priority must be one of: {', '.join(PRIORITIES)}")
+    return priority
+
+
 def find_task(tasks, task_id):
     for task in tasks:
         if task["id"] == task_id:
@@ -104,9 +110,14 @@ def add_member(trip_id, name):
 
 def add_task(trip_id, title, priority="normal"):
     get_trip(trip_id)
-    if priority not in PRIORITIES:
-        raise TripsError(f"priority must be one of: {', '.join(PRIORITIES)}")
-    repository.insert_task(trip_id, clean_name(title, "task title"), priority)
+    repository.insert_task(trip_id, clean_name(title, "task title"), check_priority(priority))
+    return get_trip(trip_id)
+
+
+def set_priority(trip_id, task_id, priority):
+    trip = get_trip(trip_id)
+    find_task(trip["tasks"], task_id)
+    repository.set_task_priority(task_id, check_priority(priority))
     return get_trip(trip_id)
 
 

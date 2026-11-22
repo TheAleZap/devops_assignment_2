@@ -31,6 +31,10 @@ class TaskCreate(BaseModel):
     priority: Priority = "normal"
 
 
+class TaskPriority(BaseModel):
+    priority: Priority
+
+
 class TaskClaim(BaseModel):
     member: str = Field(min_length=1)
 
@@ -123,6 +127,11 @@ def add_member(trip_id: int, body: MemberAdd):
 @router.post("/{trip_id}/tasks", status_code=201, response_model=Trip, responses={**NOT_FOUND, **BAD_REQUEST})
 def add_task(trip_id: int, body: TaskCreate):
     return run(service.add_task, trip_id, body.title, body.priority)
+
+
+@router.put("/{trip_id}/tasks/{task_id}/priority", response_model=Trip, responses={**NOT_FOUND, **BAD_REQUEST})
+def set_priority(trip_id: int, task_id: int, body: TaskPriority):
+    return run(service.set_priority, trip_id, task_id, body.priority)
 
 
 @router.post("/{trip_id}/tasks/{task_id}/claim", response_model=Trip, responses={**NOT_FOUND, **BAD_REQUEST})

@@ -71,6 +71,11 @@ def set_task_claim(task_id, member_id):
         cursor.execute("UPDATE tasks SET claimed_by = %s WHERE id = %s", (member_id, task_id))
 
 
+def set_task_priority(task_id, priority):
+    with db.transaction() as cursor:
+        cursor.execute("UPDATE tasks SET priority = %s WHERE id = %s", (priority, task_id))
+
+
 def set_task_done(task_id):
     with db.transaction() as cursor:
         cursor.execute("UPDATE tasks SET done = 1 WHERE id = %s", (task_id,))
