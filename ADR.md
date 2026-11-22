@@ -3,7 +3,7 @@
 
 ## 1. Backend framework and architecture
 Date: 2026-09-28
-Status: Decided
+Status: Superseded by 6
 **Context:** The core feature is an interactive availability calendar where friend groups of 4–10 people mark free days and see the best date windows update live. Taking this into account, I decided that a "reload-per-action" form interface would handle this poorly. 
 The app must run as a single process, and its two domains will later be split into separate services.
 
@@ -40,7 +40,7 @@ Consequences: Each domain can later take its tables with it without schema chang
 
 ## 4. Testing approach: unit-test the service layer, verify routers manually
 Date: 2026-10-04
-Status: Decided
+Status: Superseded by 9
 
 Context: The assignment requires at least 70% coverage on the core business logic of both domains, within a one-week build. Almost all of TripSync's logic lives in the service layer: the date-window ranking, input validation, the task-board rules, and the date confirmation between domains.
 Decision: Test the service layer with pytest: pure functions directly, and database-backed service functions against a fresh temporary SQLite database per test (the temp_db fixture, using tmp_path and monkeypatch). Coverage is measured over both whole packages, routers included, with python -m pytest --cov=scheduling --cov=trips: 40 tests, 76% total, 100% on every service and repository module, 0% on the routers.
@@ -93,6 +93,8 @@ Status: Decided
 
 **Consequences:** Scheduling reaches about 90% and Trips about 94% coverage, and the A1 bugs now have tests. A run takes about three minutes, mostly starting SQL Server. Running the tests locally empties the local databases, because the fixtures delete every row before each test. The integration test needs Docker, so it runs in CI and locally with compose, not inside the unit test suites.
 
+**Deliberately not tested:** The UI's JavaScript (checked by hand in the browser, locally and on Azure), CORS headers (configuration, checked manually from the live UI), and everything specific to Azure: cold starts, OIDC sign-in, Container Apps secrets and the paused database are only verified by the CD health check and the manual evidence, because CI must never touch Azure SQL and every connection would wake and bill it. There are no load or performance tests, since a group trip planner has a handful of users per trip and one replica per service.
+
 
 ## 8. Serverless hosting on Azure and living with cold starts
 Date: 2026-11-20
@@ -104,6 +106,8 @@ Status: Decided
 **Alternatives considered:** A minimum of one replica would remove container cold starts but bills the container all the time, against the pay-per-use requirement. App Service was rejected because its plan is billed even when idle. Private GHCR packages with registry credentials were rejected because they add a secret to manage, while the images contain only code (no .env, no tests) and the repository is already public. Retrying writes in the UI was rejected: a failed POST may already have reached the service, so only reads (GET) are retried and writes show a clear message instead.
 
 **Consequences:** The first request after the database has paused takes up to about a minute and may first get Azure's 503 "App port is not ready", which the UI turns into a retry and a clear message. Idle cost is close to zero. With at most one replica, running migrations at startup is safe (no two instances race), but throughput is capped, which is acceptable for a group trip planner. The 10-second Trips timeout means a slow Scheduling can make confirming dates wait up to 10 seconds before the designed 503.
+
+**At 100x traffic:** One replica per service would no longer be enough, so max replicas would go up, and migrations would then have to move out of startup into a separate CD step that runs once before the new revision starts, because two replicas could otherwise run the same migration at the same time. During busy hours I would keep a minimum of one replica (accepting a fixed cost) so users do not hit cold starts, and move the databases off the free offer to a higher vCore maximum without auto-pause. Trips would reuse one HTTP client (httpx.Client) for its calls to Scheduling instead of opening a connection per request, and Log Analytics would need a retention or sampling limit, since its free 5 GB a month would run out.
 
 
 ## 10. Not queuing date confirmations when Scheduling is unavailable
