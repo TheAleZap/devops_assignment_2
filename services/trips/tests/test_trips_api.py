@@ -100,3 +100,13 @@ def test_add_task_accepts_a_priority_and_rejects_unknown_ones(client):
     assert response.json()["tasks"][0]["priority"] == "high"
     bad = client.post(f"/api/trips/{trip_id}/tasks", json={"title": "X", "priority": "urgent"})
     assert bad.status_code == 422
+
+
+def test_set_priority_returns_200_and_422_for_unknown_values(client):
+    trip_id = create_trip(client).json()["id"]
+    task_id = client.post(f"/api/trips/{trip_id}/tasks", json={"title": "Lift passes"}).json()["tasks"][0]["id"]
+    response = client.put(f"/api/trips/{trip_id}/tasks/{task_id}/priority", json={"priority": "high"})
+    assert response.status_code == 200
+    assert response.json()["tasks"][0]["priority"] == "high"
+    bad = client.put(f"/api/trips/{trip_id}/tasks/{task_id}/priority", json={"priority": "urgent"})
+    assert bad.status_code == 422

@@ -358,6 +358,7 @@ From here on, every merge to `main` deploys.
 | Trips | GET | `/api/trips/{trip_id}` | A trip with members, tasks and progress |
 | Trips | POST | `/api/trips/{trip_id}/members` | Add a member |
 | Trips | POST | `/api/trips/{trip_id}/tasks` | Add a task, with priority `low`, `normal` (default) or `high` |
+| Trips | PUT | `/api/trips/{trip_id}/tasks/{task_id}/priority` | Change a task's priority |
 | Trips | POST | `/api/trips/{trip_id}/tasks/{task_id}/claim` | A member claims a task |
 | Trips | POST | `/api/trips/{trip_id}/tasks/{task_id}/complete` | Mark a claimed task done |
 | Trips | PUT | `/api/trips/{trip_id}/dates` | Confirm the trip's dates from a poll window (calls Scheduling) |

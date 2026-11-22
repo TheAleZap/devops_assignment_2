@@ -79,6 +79,26 @@ def test_task_inserted_without_priority_gets_normal(temp_db):
     assert service.get_trip(trip["id"])["tasks"][0]["priority"] == "normal"
 
 
+def test_set_priority_changes_only_that_task(temp_db):
+    trip = service.create_trip("Autumn", members=["Ana"])
+    service.add_task(trip["id"], "Book flat")
+    trip = service.add_task(trip["id"], "Buy passes")
+    first, second = (task["id"] for task in trip["tasks"])
+    updated = service.set_priority(trip["id"], second, "high")
+    assert [task["priority"] for task in updated["tasks"]] == ["normal", "high"]
+    assert updated["tasks"][0]["id"] == first
+
+
+def test_set_priority_rejects_unknown_value_and_task_from_another_trip(temp_db):
+    trip = service.create_trip("Autumn", members=["Ana"])
+    task_id = service.add_task(trip["id"], "Book flat")["tasks"][0]["id"]
+    with pytest.raises(service.TripsError):
+        service.set_priority(trip["id"], task_id, "urgent")
+    other = service.create_trip("Winter", members=["Ben"])
+    with pytest.raises(service.TaskNotFoundError):
+        service.set_priority(other["id"], task_id, "high")
+
+
 def test_add_member_rejects_duplicate_name_in_any_case(temp_db):
     trip = service.create_trip("Autumn", members=["Ana"])
     with pytest.raises(service.TripsError):

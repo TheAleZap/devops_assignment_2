@@ -208,6 +208,24 @@
         "title": "TaskCreate",
         "type": "object"
       },
+      "TaskPriority": {
+        "properties": {
+          "priority": {
+            "enum": [
+              "low",
+              "normal",
+              "high"
+            ],
+            "title": "Priority",
+            "type": "string"
+          }
+        },
+        "required": [
+          "priority"
+        ],
+        "title": "TaskPriority",
+        "type": "object"
+      },
       "Trip": {
         "properties": {
           "confirmed_window": {
@@ -905,6 +923,87 @@
           }
         },
         "summary": "Complete Task",
+        "tags": [
+          "trips"
+        ]
+      }
+    },
+    "/api/trips/{trip_id}/tasks/{task_id}/priority": {
+      "put": {
+        "operationId": "set_priority_api_trips__trip_id__tasks__task_id__priority_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trip_id",
+            "required": true,
+            "schema": {
+              "title": "Trip Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskPriority"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trip"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by a business rule"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Trip, task or poll not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Priority",
         "tags": [
           "trips"
         ]

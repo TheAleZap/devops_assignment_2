@@ -240,7 +240,23 @@ function renderTrip() {
         ? `claimed by ${task.claimed_by}`
         : "unclaimed";
     label.textContent = `${task.title} (${status})`;
-    item.appendChild(label);
+
+    // Priority: shown for every task, and changeable until the task is done.
+    const priority = document.createElement("select");
+    priority.setAttribute("aria-label", `Priority of ${task.title}`);
+    for (const value of PRIORITIES) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value;
+      option.selected = value === task.priority;
+      priority.appendChild(option);
+    }
+    priority.disabled = task.done;
+    priority.addEventListener(
+      "change",
+      handle(() => setPriority(task.id, priority.value)),
+    );
+    item.append(priority, label);
 
     if (!task.done) {
       if (!task.claimed_by) {
@@ -273,6 +289,8 @@ function renderTrip() {
     tasksList.appendChild(item);
   }
 }
+
+const PRIORITIES = ["low", "normal", "high"];
 
 // ---------- Scheduling actions ----------
 
@@ -390,16 +408,26 @@ async function addMember() {
 
 async function addTask() {
   const title = $("new-task").value.trim();
+  const priority = $("new-task-priority").value;
   if (!title) {
     throw new Error("Type a task title");
   }
   state.trip = await api(`/api/trips/${state.trip.id}/tasks`, {
     method: "POST",
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, priority }),
   });
   $("new-task").value = "";
   renderTrip();
   showMessage(`Added task "${title}".`);
+}
+
+async function setPriority(taskId, priority) {
+  state.trip = await api(`/api/trips/${state.trip.id}/tasks/${taskId}/priority`, {
+    method: "PUT",
+    body: JSON.stringify({ priority }),
+  });
+  renderTrip();
+  showMessage(`Priority set to ${priority}.`);
 }
 
 async function claimTask(taskId, memberName) {
